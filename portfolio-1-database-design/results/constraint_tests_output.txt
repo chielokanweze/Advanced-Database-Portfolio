@@ -1,0 +1,45 @@
+SET
+SET
+BEGIN
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+RESET
+ROLLBACK
+psql:/portfolio/portfolio-1-database-design/04_constraint_tests.sql:22: NOTICE:  PASS T01 duplicate hospital_no rejected (unique_violation)
+psql:/portfolio/portfolio-1-database-design/04_constraint_tests.sql:31: NOTICE:  PASS T02 badly formatted hospital_no rejected (check_violation)
+psql:/portfolio/portfolio-1-database-design/04_constraint_tests.sql:40: NOTICE:  PASS T03 future date of birth rejected by trigger
+psql:/portfolio/portfolio-1-database-design/04_constraint_tests.sql:49: NOTICE:  PASS T04 invalid phone format rejected
+psql:/portfolio/portfolio-1-database-design/04_constraint_tests.sql:62: NOTICE:  PASS T05 overlapping doctor booking rejected (exclusion constraint appt_no_doctor_overlap)
+psql:/portfolio/portfolio-1-database-design/04_constraint_tests.sql:80: NOTICE:  PASS T06 patient booked twice at the same time rejected (appt_no_patient_overlap)
+psql:/portfolio/portfolio-1-database-design/04_constraint_tests.sql:97: NOTICE:  PASS T07 slot re-booked after cancellation
+psql:/portfolio/portfolio-1-database-design/04_constraint_tests.sql:106: NOTICE:  PASS T08 end_at before start_at rejected
+psql:/portfolio/portfolio-1-database-design/04_constraint_tests.sql:115: NOTICE:  PASS T09 diagnosis on a future (BOOKED) appointment rejected by trigger
+psql:/portfolio/portfolio-1-database-design/04_constraint_tests.sql:125: NOTICE:  PASS T10 Z34.9 (pregnancy) on a male patient rejected by trigger
+psql:/portfolio/portfolio-1-database-design/04_constraint_tests.sql:134: NOTICE:  PASS T11 unknown ICD-10 code rejected (foreign key)
+psql:/portfolio/portfolio-1-database-design/04_constraint_tests.sql:147: NOTICE:  PASS T12 second primary diagnosis rejected (uq_one_primary_diagnosis)
+psql:/portfolio/portfolio-1-database-design/04_constraint_tests.sql:155: NOTICE:  PASS T13 negative stock rejected
+psql:/portfolio/portfolio-1-database-design/04_constraint_tests.sql:164: NOTICE:  PASS T14 DISPENSED without dispensed_at rejected
+psql:/portfolio/portfolio-1-database-design/04_constraint_tests.sql:179: NOTICE:  PASS T15 potassium 7.4 mmol/L automatically flagged CRITICAL (limit 6.2)
+psql:/portfolio/portfolio-1-database-design/04_constraint_tests.sql:188: NOTICE:  PASS T16 REVIEWED without reviewed_by/reviewed_at rejected
+psql:/portfolio/portfolio-1-database-design/04_constraint_tests.sql:200: NOTICE:  PASS T17 occupied bed cannot be allocated (bed_not_double_occupied)
+psql:/portfolio/portfolio-1-database-design/04_constraint_tests.sql:209: NOTICE:  PASS T18 deleting a patient with clinical history rejected (RESTRICT)
+psql:/portfolio/portfolio-1-database-design/04_constraint_tests.sql:224: NOTICE:  PASS T19 audit row: appointments {"status": "BOOKED"} -> {"status": "CANCELLED"} by app user "frontdesk.ada"
+psql:/portfolio/portfolio-1-database-design/04_constraint_tests.sql:234: NOTICE:  PASS T20 front-desk role denied access to diagnoses (insufficient_privilege)

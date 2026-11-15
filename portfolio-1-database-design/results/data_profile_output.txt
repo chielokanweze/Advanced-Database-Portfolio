@@ -1,0 +1,92 @@
+SET
+== Row counts and on-disk size per table ==
+  table_name   | approx_rows | total_size 
+---------------+-------------+------------
+ appointments  |      123369 | 31 MB
+ diagnoses     |      106479 | 16 MB
+ prescriptions |      103797 | 16 MB
+ lab_orders    |       73116 | 9440 kB
+ patients      |       60000 | 9072 kB
+ admissions    |        3765 | 976 kB
+ doctors       |          40 | 72 kB
+ lab_tests     |           8 | 56 kB
+ beds          |          98 | 40 kB
+ wards         |           6 | 40 kB
+ drugs         |          23 | 40 kB
+ departments   |           8 | 40 kB
+ audit_log     |           0 | 32 kB
+ icd10_codes   |          37 | 24 kB
+
+== Appointment status by period (data as-of Saturday 14 Nov 2026) ==
+  status   | appointments | first_visit | last_visit 
+-----------+--------------+-------------+------------
+ BOOKED    |         7161 | 2026-11-16  | 2026-12-31
+ CANCELLED |         9995 | 2025-11-17  | 2026-12-31
+ COMPLETED |        97016 | 2025-11-17  | 2026-11-13
+ NO_SHOW   |         9197 | 2025-11-17  | 2026-11-13
+
+== Patient mix per department (children in Paediatrics, women in O&G) ==
+        department        | visits | avg_age | pct_female 
+--------------------------+--------+---------+------------
+ Obstetrics & Gynaecology |  17778 |    29.7 |        100
+ Cardiology               |  17760 |    47.1 |         52
+ General Outpatient       |  17721 |    46.9 |         52
+ Internal Medicine        |  17712 |    47.0 |         52
+ Surgery                  |  17631 |    46.5 |         53
+ Accident & Emergency     |  17611 |    37.8 |         52
+ Paediatrics              |  17156 |     7.3 |         53
+
+== Top 10 primary diagnoses ==
+ icd10_code |                     description                     | cases 
+------------+-----------------------------------------------------+-------
+ I10        | Essential (primary) hypertension                    | 10475
+ B50.9      | Plasmodium falciparum malaria, unspecified          |  8761
+ Z34.9      | Supervision of normal pregnancy, unspecified        |  6921
+ E11.9      | Type 2 diabetes mellitus without complications      |  4814
+ J06.9      | Acute upper respiratory infection, unspecified      |  4142
+ S52.5      | Fracture of lower end of radius                     |  4131
+ A09        | Infectious gastroenteritis and colitis, unspecified |  4104
+ I50.9      | Heart failure, unspecified                          |  3681
+ R07.4      | Chest pain, unspecified                             |  3104
+ S06.0      | Concussion                                          |  2745
+
+== Lab results by flag and workflow status ==
+ result_flag |  status  | count 
+-------------+----------+-------
+ CRITICAL    | RESULTED |     5
+ CRITICAL    | REVIEWED |  1039
+ HIGH        | RESULTED |   218
+ HIGH        | REVIEWED | 23239
+ LOW         | RESULTED |    65
+ LOW         | REVIEWED |  6222
+ NORMAL      | RESULTED |   488
+ NORMAL      | REVIEWED | 41840
+
+== Drugs below re-order level ==
+           name            | stock_qty | reorder_level 
+---------------------------+-----------+---------------
+ Atorvastatin 20mg         |      1200 |          1500
+ Ceftriaxone 1g            |        45 |            60
+ Insulin glargine 100IU/mL |        18 |            25
+ Lisinopril 10mg           |      2500 |          3000
+
+== Current bed occupancy per ward ==
+        ward         | beds | occupied | pct_occupied 
+---------------------+------+----------+--------------
+ Cardiac Care Unit   |    8 |        7 |           88
+ Intensive Care Unit |   10 |        8 |           80
+ Maternity Ward      |   16 |       13 |           81
+ Medical Ward        |   24 |       23 |           96
+ Paediatric Ward     |   20 |       17 |           85
+ Surgical Ward       |   20 |       15 |           75
+
+== Consistency checks (every number must be 0) ==
+ dx_on_unattended_visits | dx_sex_mismatch | visits_before_registration | adults_in_paediatrics | completed_without_primary_dx 
+-------------------------+-----------------+----------------------------+-----------------------+------------------------------
+                       0 |               0 |                          0 |                     0 |                            0
+
+== Example: one patient record ==
+ hospital_no |   patient    | sex | age | genotype |        start_at        | department |  status   | icd10_code |           description            
+-------------+--------------+-----+-----+----------+------------------------+------------+-----------+------------+----------------------------------
+ GC00000042  | Segun Iyalla | M   |  49 | AS       | 2026-06-17 08:30:00+01 | Cardiology | COMPLETED | I10        | Essential (primary) hypertension
+

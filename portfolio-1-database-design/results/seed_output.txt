@@ -1,0 +1,52 @@
+SET
+ setseed 
+---------
+ 
+(1 row)
+
+CREATE FUNCTION
+CREATE FUNCTION
+SELECT 1
+INSERT 0 8
+INSERT 0 37
+INSERT 0 23
+INSERT 0 8
+INSERT 0 40
+INSERT 0 60000
+SELECT 131522
+CREATE INDEX
+SELECT 4
+CREATE TABLE
+INSERT 0 7
+SELECT 124088
+INSERT 0 123369
+CREATE TABLE
+INSERT 0 50
+SELECT 188
+SELECT 13
+INSERT 0 97016
+INSERT 0 9463
+CREATE TABLE
+INSERT 0 37
+INSERT 0 103797
+CREATE TABLE
+INSERT 0 23
+INSERT 0 73116
+CREATE TABLE
+INSERT 0 6
+INSERT 0 6
+INSERT 0 98
+INSERT 0 3765
+ANALYZE
+  table_name   |  rows  
+---------------+--------
+ audit_log     |      0
+ doctors       |     40
+ admissions    |   3765
+ patients      |  60000
+ lab_orders    |  73116
+ diagnoses     | 106479
+ prescriptions | 103797
+ appointments  | 123369
+(8 rows)
+
