@@ -1,0 +1,8 @@
+Aggregate  (cost=3407.08..3407.09 rows=1 width=8) (actual time=20.189..20.191 rows=1 loops=1)
+  Buffers: shared hit=1555
+  ->  Seq Scan on appointments  (cost=0.00..3405.53 rows=617 width=0) (actual time=19.144..20.158 rows=448 loops=1)
+        Filter: ((start_at)::date = '2026-11-13'::date)
+        Rows Removed by Filter: 122921
+        Buffers: shared hit=1555
+Planning Time: 0.093 ms
+Execution Time: 20.225 ms

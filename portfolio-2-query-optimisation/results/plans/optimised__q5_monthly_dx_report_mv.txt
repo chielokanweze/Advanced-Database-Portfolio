@@ -1,0 +1,13 @@
+Sort  (cost=23.17..23.55 rows=150 width=60) (actual time=0.162..0.168 rows=150 loops=1)
+  Sort Key: month, department, cases DESC
+  Sort Method: quicksort  Memory: 38kB
+  Buffers: shared hit=8
+  ->  Seq Scan on mv_monthly_diagnoses  (cost=0.00..17.75 rows=150 width=60) (actual time=0.009..0.087 rows=150 loops=1)
+        Filter: ((month >= '2026-07-01'::date) AND (month < '2026-10-01'::date))
+        Rows Removed by Filter: 500
+        Buffers: shared hit=8
+Planning:
+  Buffers: shared hit=39 read=1
+  I/O Timings: shared read=0.073
+Planning Time: 0.236 ms
+Execution Time: 0.186 ms

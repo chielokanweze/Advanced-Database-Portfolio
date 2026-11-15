@@ -1,0 +1,16 @@
+Nested Loop  (cost=0.58..67.29 rows=6 width=71) (actual time=0.250..0.367 rows=11 loops=1)
+  Buffers: shared hit=39 read=3
+  I/O Timings: shared read=0.212
+  ->  Index Scan using idx_appt_start on appointments a  (cost=0.29..17.42 rows=6 width=32) (actual time=0.204..0.289 rows=11 loops=1)
+        Index Cond: ((start_at >= '2026-11-16 00:00:00+01'::timestamp with time zone) AND (start_at < '2026-11-17 00:00:00+01'::timestamp with time zone))
+        Filter: (((status)::text <> 'CANCELLED'::text) AND (doctor_id = 12))
+        Rows Removed by Filter: 426
+        Buffers: shared hit=6 read=3
+        I/O Timings: shared read=0.212
+  ->  Index Scan using patients_pkey on patients p  (cost=0.29..8.31 rows=1 width=28) (actual time=0.006..0.006 rows=1 loops=11)
+        Index Cond: (patient_id = a.patient_id)
+        Buffers: shared hit=33
+Planning:
+  Buffers: shared hit=26
+Planning Time: 0.263 ms
+Execution Time: 0.386 ms

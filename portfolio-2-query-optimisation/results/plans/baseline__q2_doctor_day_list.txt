@@ -1,0 +1,22 @@
+Sort  (cost=1848.29..1848.31 rows=7 width=72) (actual time=5.337..5.340 rows=11 loops=1)
+  Sort Key: a.start_at
+  Sort Method: quicksort  Memory: 25kB
+  Buffers: shared hit=1580
+  ->  Nested Loop  (cost=169.31..1848.19 rows=7 width=72) (actual time=4.748..5.321 rows=11 loops=1)
+        Buffers: shared hit=1580
+        ->  Bitmap Heap Scan on appointments a  (cost=169.02..1790.00 rows=7 width=33) (actual time=4.647..4.760 rows=11 loops=1)
+              Recheck Cond: ((doctor_id = 12) AND ((status)::text <> 'CANCELLED'::text))
+              Filter: ((start_at >= '2026-11-16 00:00:00+01'::timestamp with time zone) AND (start_at < '2026-11-17 00:00:00+01'::timestamp with time zone))
+              Rows Removed by Filter: 3197
+              Heap Blocks: exact=1507
+              Buffers: shared hit=1547
+              ->  Bitmap Index Scan on appt_no_doctor_overlap  (cost=0.00..169.02 rows=3299 width=0) (actual time=2.639..2.639 rows=3208 loops=1)
+                    Index Cond: (doctor_id = 12)
+                    Buffers: shared hit=40
+        ->  Index Scan using patients_pkey on patients p  (cost=0.29..8.31 rows=1 width=28) (actual time=0.048..0.048 rows=1 loops=11)
+              Index Cond: (patient_id = a.patient_id)
+              Buffers: shared hit=33
+Planning:
+  Buffers: shared hit=21
+Planning Time: 0.347 ms
+Execution Time: 8.839 ms

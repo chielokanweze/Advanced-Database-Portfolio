@@ -1,0 +1,76 @@
+--- q1_patient_history  (8 rows, first 12 shown)
+start_at | department | doctor | status | icd10_code | diagnosis | prescriptions | lab_results
+2026-01-07 12:00:00+01:00 | Obstetrics & Gynaecology | Dr Pepple | COMPLETED | O24.4 | Diabetes mellitus arising in pregnancy | Insulin glargine 100IU/mL x1 | RBG=12.12 HIGH
+2026-05-04 14:00:00+01:00 | General Outpatient | Dr Adebayo | COMPLETED | M54.5 | Low back pain | Ibuprofen 400mg x21 | 
+2026-05-12 14:30:00+01:00 | Obstetrics & Gynaecology | Dr Amadi | COMPLETED | N76.0 | Acute vaginitis | Metronidazole 400mg x14 | 
+2026-05-18 08:30:00+01:00 | Internal Medicine | Dr Iyalla | COMPLETED | N18.9 | Chronic kidney disease, unspecified |  | CREAT=388.87 HIGH; K=4.91 NORMAL
+2026-06-04 13:30:00+01:00 | Internal Medicine | Dr Adebayo | COMPLETED | B20 | HIV disease resulting in infectious and parasitic diseases |  | WBC=10.40 NORMAL
+2026-06-18 15:30:00+01:00 | Internal Medicine | Dr Opara | COMPLETED | E87.6 | Hypokalaemia |  | K=4.33 NORMAL
+2026-07-10 15:00:00+01:00 | Obstetrics & Gynaecology | Dr Ibe | COMPLETED | N94.6 | Dysmenorrhoea, unspecified | Ibuprofen 400mg x9 | 
+2026-11-06 11:30:00+01:00 | Obstetrics & Gynaecology | Dr Amadi | COMPLETED | O14.9 | Pre-eclampsia, unspecified | Methyldopa 250mg x60 | CREAT=95.43 NORMAL
+
+--- q2_doctor_day_list  (11 rows, first 12 shown)
+start_at | hospital_no | patient | reason
+2026-11-16 09:00:00+01:00 | GC00053655 | Ugochi Abbey | Review of test results
+2026-11-16 10:30:00+01:00 | GC00017428 | Damiete Horsfall | Referred from primary health centre
+2026-11-16 11:00:00+01:00 | GC00037318 | Ngozi Nwachukwu | Follow-up visit
+2026-11-16 11:30:00+01:00 | GC00000650 | Obinna Adebayo | New complaint
+2026-11-16 12:30:00+01:00 | GC00006580 | Olumide Briggs | Follow-up visit
+2026-11-16 13:00:00+01:00 | GC00031146 | Babatunde Echendu | Follow-up visit
+2026-11-16 13:30:00+01:00 | GC00034856 | Chioma Allison | Referred from primary health centre
+2026-11-16 14:00:00+01:00 | GC00053853 | Ikechukwu Ekine | New complaint
+2026-11-16 14:30:00+01:00 | GC00021465 | Chinedu Ikwuemesi | Referred from primary health centre
+2026-11-16 15:00:00+01:00 | GC00030353 | Aisha Georgewill | Follow-up visit
+2026-11-16 15:30:00+01:00 | GC00001118 | Daere Okoye | Referred from primary health centre
+
+--- q3_critical_unreviewed  (5 rows, first 12 shown)
+order_id | hospital_no | test | result_value | unit | resulted_at
+12528 | GC00038266 | Haemoglobin | 5.06 | g/dL | 2026-01-19 16:08:06.545527+01:00
+23323 | GC00045316 | Serum creatinine | 686.18 | umol/L | 2026-03-12 13:13:34.676698+01:00
+51080 | GC00044913 | Serum creatinine | 835.94 | umol/L | 2026-07-28 16:18:19.698197+01:00
+51105 | GC00031437 | Serum potassium | 8.99 | mmol/L | 2026-07-28 18:32:49.688702+01:00
+64489 | GC00009852 | Serum creatinine | 856.71 | umol/L | 2026-10-02 13:50:52.591759+01:00
+
+--- q4_phone_search  (3 rows, first 12 shown)
+hospital_no | first_name | last_name | phone
+GC00017323 | Dagogo | Abbey | +2348189735910
+GC00018231 | Olumide | Davies | +2349039735919
+GC00037192 | Funmilayo | Eze | +2348047473591
+
+--- q5_monthly_dx_report  (150 rows, first 12 shown)
+month | department | diagnosis | cases
+2026-07-01 | Accident & Emergency | Plasmodium falciparum malaria, unspecified | 258
+2026-07-01 | Accident & Emergency | Concussion | 256
+2026-07-01 | Accident & Emergency | Fracture of lower end of radius | 252
+2026-07-01 | Accident & Emergency | Infectious gastroenteritis and colitis, unspecified | 174
+2026-07-01 | Accident & Emergency | Chest pain, unspecified | 153
+2026-07-01 | Accident & Emergency | Toxic effect of snake venom | 86
+2026-07-01 | Accident & Emergency | Pneumonia, unspecified organism | 84
+2026-07-01 | Cardiology | Essential (primary) hypertension | 456
+2026-07-01 | Cardiology | Angina pectoris, unspecified | 246
+2026-07-01 | Cardiology | Heart failure, unspecified | 224
+2026-07-01 | Cardiology | Atrial fibrillation and atrial flutter, unspecified | 122
+2026-07-01 | Cardiology | Acute myocardial infarction, unspecified | 116
+
+--- q6a_daily_count_nonsargable  (1 rows, first 12 shown)
+count
+448
+
+--- q5_monthly_dx_report_mv  (150 rows, first 12 shown)
+month | department | diagnosis | cases
+2026-07-01 | Accident & Emergency | Plasmodium falciparum malaria, unspecified | 258
+2026-07-01 | Accident & Emergency | Concussion | 256
+2026-07-01 | Accident & Emergency | Fracture of lower end of radius | 252
+2026-07-01 | Accident & Emergency | Infectious gastroenteritis and colitis, unspecified | 174
+2026-07-01 | Accident & Emergency | Chest pain, unspecified | 153
+2026-07-01 | Accident & Emergency | Toxic effect of snake venom | 86
+2026-07-01 | Accident & Emergency | Pneumonia, unspecified organism | 84
+2026-07-01 | Cardiology | Essential (primary) hypertension | 456
+2026-07-01 | Cardiology | Angina pectoris, unspecified | 246
+2026-07-01 | Cardiology | Heart failure, unspecified | 224
+2026-07-01 | Cardiology | Atrial fibrillation and atrial flutter, unspecified | 122
+2026-07-01 | Cardiology | Acute myocardial infarction, unspecified | 116
+
+--- q6b_daily_count_sargable  (1 rows, first 12 shown)
+count
+448

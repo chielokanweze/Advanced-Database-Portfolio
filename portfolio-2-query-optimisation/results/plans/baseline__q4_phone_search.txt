@@ -1,0 +1,8 @@
+Seq Scan on patients  (cost=0.00..1482.00 rows=6 width=39) (actual time=3.576..10.535 rows=3 loops=1)
+  Filter: ((phone)::text ~~ '%73591%'::text)
+  Rows Removed by Filter: 59997
+  Buffers: shared hit=732
+Planning:
+  Buffers: shared hit=3
+Planning Time: 0.244 ms
+Execution Time: 10.557 ms

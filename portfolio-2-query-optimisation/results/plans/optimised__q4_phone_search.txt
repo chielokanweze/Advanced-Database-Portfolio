@@ -1,0 +1,11 @@
+Bitmap Heap Scan on patients  (cost=30.20..52.65 rows=6 width=39) (actual time=0.073..0.078 rows=3 loops=1)
+  Recheck Cond: ((phone)::text ~~ '%73591%'::text)
+  Heap Blocks: exact=3
+  Buffers: shared hit=10
+  ->  Bitmap Index Scan on idx_patients_phone_trgm  (cost=0.00..30.20 rows=6 width=0) (actual time=0.067..0.067 rows=3 loops=1)
+        Index Cond: ((phone)::text ~~ '%73591%'::text)
+        Buffers: shared hit=7
+Planning:
+  Buffers: shared hit=11
+Planning Time: 0.113 ms
+Execution Time: 0.095 ms

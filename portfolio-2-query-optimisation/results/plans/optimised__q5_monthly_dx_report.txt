@@ -1,0 +1,57 @@
+Sort  (cost=6393.94..6451.86 rows=23168 width=60) (actual time=68.942..68.961 rows=150 loops=1)
+  Sort Key: ((date_trunc('month'::text, a.start_at))::date), dep.name, (count(*)) DESC
+  Sort Method: quicksort  Memory: 38kB
+  Buffers: shared hit=1434 read=28
+  I/O Timings: shared read=1.843
+  ->  HashAggregate  (cost=4366.76..4714.28 rows=23168 width=60) (actual time=68.627..68.822 rows=150 loops=1)
+        Group Key: (date_trunc('month'::text, a.start_at))::date, dep.name, c.description
+        Batches: 1  Memory Usage: 817kB
+        Buffers: shared hit=1434 read=28
+        I/O Timings: shared read=1.843
+        ->  Hash Join  (cost=1457.42..4135.08 rows=23168 width=52) (actual time=26.566..61.117 rows=24693 loops=1)
+              Hash Cond: (doc.dept_id = dep.dept_id)
+              Buffers: shared hit=1434 read=28
+              I/O Timings: shared read=1.843
+              ->  Hash Join  (cost=1456.24..3925.03 rows=23168 width=42) (actual time=26.539..51.245 rows=24693 loops=1)
+                    Hash Cond: (a.doctor_id = doc.doctor_id)
+                    Buffers: shared hit=1433 read=28
+                    I/O Timings: shared read=1.843
+                    ->  Hash Join  (cost=1454.34..3855.87 rows=23168 width=44) (actual time=26.523..47.010 rows=24693 loops=1)
+                          Hash Cond: ((d.icd10_code)::text = (c.code)::text)
+                          Buffers: shared hit=1432 read=28
+                          I/O Timings: shared read=1.843
+                          ->  Hash Join  (cost=1452.51..3786.26 rows=23168 width=17) (actual time=26.503..42.046 rows=24693 loops=1)
+                                Hash Cond: (d.appointment_id = a.appointment_id)
+                                Buffers: shared hit=1431 read=28
+                                I/O Timings: shared read=1.843
+                                ->  Seq Scan on diagnoses d  (cost=0.00..2079.79 rows=96743 width=13) (actual time=0.004..10.309 rows=97016 loops=1)
+                                      Filter: is_primary
+                                      Rows Removed by Filter: 9463
+                                      Buffers: shared hit=1015
+                                ->  Hash  (cost=1083.19..1083.19 rows=29545 width=20) (actual time=12.852..12.854 rows=29481 loops=1)
+                                      Buckets: 32768  Batches: 1  Memory Usage: 1754kB
+                                      Buffers: shared hit=416 read=28
+                                      I/O Timings: shared read=1.843
+                                      ->  Index Scan using idx_appt_start on appointments a  (cost=0.29..1083.19 rows=29545 width=20) (actual time=0.120..7.736 rows=29481 loops=1)
+                                            Index Cond: ((start_at >= '2026-07-01 00:00:00+01'::timestamp with time zone) AND (start_at < '2026-10-01 00:00:00+01'::timestamp with time zone))
+                                            Buffers: shared hit=416 read=28
+                                            I/O Timings: shared read=1.843
+                          ->  Hash  (cost=1.37..1.37 rows=37 width=37) (actual time=0.012..0.013 rows=37 loops=1)
+                                Buckets: 1024  Batches: 1  Memory Usage: 11kB
+                                Buffers: shared hit=1
+                                ->  Seq Scan on icd10_codes c  (cost=0.00..1.37 rows=37 width=37) (actual time=0.002..0.006 rows=37 loops=1)
+                                      Buffers: shared hit=1
+                    ->  Hash  (cost=1.40..1.40 rows=40 width=6) (actual time=0.012..0.013 rows=40 loops=1)
+                          Buckets: 1024  Batches: 1  Memory Usage: 10kB
+                          Buffers: shared hit=1
+                          ->  Seq Scan on doctors doc  (cost=0.00..1.40 rows=40 width=6) (actual time=0.003..0.007 rows=40 loops=1)
+                                Buffers: shared hit=1
+              ->  Hash  (cost=1.08..1.08 rows=8 width=18) (actual time=0.013..0.013 rows=8 loops=1)
+                    Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                    Buffers: shared hit=1
+                    ->  Seq Scan on departments dep  (cost=0.00..1.08 rows=8 width=18) (actual time=0.007..0.008 rows=8 loops=1)
+                          Buffers: shared hit=1
+Planning:
+  Buffers: shared hit=21
+Planning Time: 0.565 ms
+Execution Time: 69.260 ms

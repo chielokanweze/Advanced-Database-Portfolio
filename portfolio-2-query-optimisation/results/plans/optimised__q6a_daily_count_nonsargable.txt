@@ -1,0 +1,11 @@
+Aggregate  (cost=2941.22..2941.23 rows=1 width=8) (actual time=17.649..17.651 rows=1 loops=1)
+  Buffers: shared hit=33 read=85
+  I/O Timings: shared read=4.172
+  ->  Index Only Scan using idx_appt_start on appointments  (cost=0.29..2939.67 rows=617 width=0) (actual time=16.475..17.623 rows=448 loops=1)
+        Filter: ((start_at)::date = '2026-11-13'::date)
+        Rows Removed by Filter: 122921
+        Heap Fetches: 16
+        Buffers: shared hit=33 read=85
+        I/O Timings: shared read=4.172
+Planning Time: 0.080 ms
+Execution Time: 17.677 ms

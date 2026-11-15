@@ -1,0 +1,8 @@
+Aggregate  (cost=13.81..13.82 rows=1 width=8) (actual time=0.088..0.089 rows=1 loops=1)
+  Buffers: shared hit=3
+  ->  Index Only Scan using idx_appt_start on appointments  (cost=0.29..13.19 rows=245 width=0) (actual time=0.021..0.060 rows=448 loops=1)
+        Index Cond: ((start_at >= '2026-11-13 00:00:00+01'::timestamp with time zone) AND (start_at < '2026-11-14 00:00:00+01'::timestamp with time zone))
+        Heap Fetches: 0
+        Buffers: shared hit=3
+Planning Time: 0.072 ms
+Execution Time: 0.106 ms
