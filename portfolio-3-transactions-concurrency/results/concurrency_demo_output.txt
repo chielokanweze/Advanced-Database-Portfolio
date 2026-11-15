@@ -1,0 +1,173 @@
+GraceCare - Portfolio 3 concurrency demonstrations
+PostgreSQL 16.4 (Debian 16.4-1.pgdg120+2) on x86_64-pc-linux-gnu; default isolation = read committed
+
+========================================================================================
+A. ATOMICITY - commit, rollback and savepoint
+========================================================================================
+A visit has two prescriptions: Paracetamol x18 and Ceftriaxone x3. dispense_prescriptions()
+updates stock and prescription status for BOTH inside one transaction.
+
+A1 - Ceftriaxone stock is only 2, so the second drug fails:
+  +     22 ms  [pharm1 ] ERROR: insufficient stock for Ceftriaxone 1g: need 3, have 2 -> ROLLBACK
+  +     48 ms  [check  ] Paracetamol stock = 1000 (unchanged although it was updated first)
+  +     48 ms  [check  ] prescription statuses = PRESCRIBED, PRESCRIBED -> nothing half-done (atomicity)
+
+A2 - stock refilled to 45, same call:
+  +     68 ms  [pharm1 ] dispensed Paracetamol 500mg x18 -> stock now 982
+  +     68 ms  [pharm1 ] dispensed Ceftriaxone 1g x3 -> stock now 42
+  +     68 ms  [pharm1 ] COMMIT - both changes are now durable
+  +     85 ms  [check  ] 7 audit_log rows written by the triggers for these changes
+
+A3 - SAVEPOINT: a doctor orders 3 lab tests; the 2nd uses an unknown test id.
+     Only that step is undone (ROLLBACK TO SAVEPOINT); the other two orders are kept.
+  +     90 ms  [doctor ] ordered MPD
+  +     93 ms  [doctor ] test_id 999 does not exist -> ROLLBACK TO SAVEPOINT (transaction continues)
+  +     94 ms  [doctor ] ordered HB
+  +    112 ms  [check  ] lab orders stored after COMMIT: MPD, HB
+
+========================================================================================
+B. LOST UPDATE - two pharmacists dispense Paracetamol at the same moment
+========================================================================================
+Start stock 1000. Pharmacist 1 dispenses 18, pharmacist 2 dispenses 24. Correct result: 958.
+
+B1 read-modify-write in the application, READ COMMITTED (the bug)
+  +     17 ms  [pharm1 ] SELECT stock_qty ...
+  +     19 ms  [pharm2 ] SELECT stock_qty ...
+  +     22 ms  [pharm2 ] read stock = 1000
+  +     22 ms  [pharm1 ] read stock = 1000
+  +    326 ms  [pharm1 ] UPDATE drugs SET stock_qty = 1000 - 18 = 982
+  +    326 ms  [pharm2 ] UPDATE drugs SET stock_qty = 1000 - 24 = 976
+  +    338 ms  [pharm1 ] COMMIT
+  +    347 ms  [pharm2 ] COMMIT
+  +    369 ms  [check  ] final stock = 976 -> WRONG - 24 tablets recorded instead of 42 (lost update)
+
+B2 fix 1: pessimistic lock - SELECT ... FOR UPDATE
+  +     14 ms  [pharm1 ] SELECT stock_qty ... FOR UPDATE
+  +     16 ms  [pharm1 ] read stock = 1000
+  +     66 ms  [pharm2 ] SELECT stock_qty ... FOR UPDATE
+  +    234 ms  [monitor] pg_stat_activity: pharm2 is WAITING (Lock:transactionid), blocked by pharm1
+  +    316 ms  [pharm1 ] UPDATE drugs SET stock_qty = 1000 - 18 = 982
+  +    438 ms  [pharm1 ] COMMIT
+  +    439 ms  [pharm2 ] read stock = 982
+  +    741 ms  [pharm2 ] UPDATE drugs SET stock_qty = 982 - 24 = 958
+  +    749 ms  [pharm2 ] COMMIT
+  +    767 ms  [check  ] final stock = 958 -> CORRECT
+
+B3 fix 2: let the database do the arithmetic - UPDATE ... SET stock_qty = stock_qty - n
+  +     16 ms  [pharm1 ] UPDATE drugs SET stock_qty = stock_qty - 18
+  +     17 ms  [pharm2 ] UPDATE drugs SET stock_qty = stock_qty - 24
+  +     24 ms  [pharm1 ] COMMIT
+  +     30 ms  [pharm2 ] COMMIT
+  +     48 ms  [check  ] final stock = 958 -> CORRECT
+
+B4 fix 3: optimistic - REPEATABLE READ, the loser gets error 40001 and retries
+  +     15 ms  [pharm1 ] SELECT stock_qty ...
+  +     15 ms  [pharm2 ] SELECT stock_qty ...
+  +     17 ms  [pharm1 ] read stock = 1000
+  +     17 ms  [pharm2 ] read stock = 1000
+  +    318 ms  [pharm2 ] UPDATE drugs SET stock_qty = 1000 - 24 = 976
+  +    318 ms  [pharm1 ] UPDATE drugs SET stock_qty = 1000 - 18 = 982
+  +    325 ms  [pharm2 ] COMMIT
+  +    327 ms  [pharm1 ] ERROR 40001 could not serialize access due to concurrent update -> ROLLBACK, retry #1
+  +    327 ms  [pharm1 ] SELECT stock_qty ...
+  +    328 ms  [pharm1 ] read stock = 976
+  +    630 ms  [pharm1 ] UPDATE drugs SET stock_qty = 976 - 18 = 958
+  +   1053 ms  [pharm1 ] COMMIT
+  +   1076 ms  [check  ] final stock = 958 -> CORRECT
+
+Summary B:
+  B1: final stock   976  WRONG - 24 tablets recorded instead of 42 (lost update)
+  B2: final stock   958  CORRECT
+  B3: final stock   958  CORRECT
+  B4: final stock   958  CORRECT
+
+========================================================================================
+C. NON-REPEATABLE READ - stock report while a delivery is booked in
+========================================================================================
+
+Report transaction runs at READ COMMITTED:
+  +     58 ms  [report ] 1st read of Amoxicillin stock = 5200
+  +     69 ms  [store  ] delivery of 2000 capsules booked in -> COMMIT
+  +     70 ms  [report ] 2nd read in the SAME transaction = 7200
+  +     70 ms  [check  ] value changed inside one transaction (non-repeatable read)
+
+Report transaction runs at REPEATABLE READ:
+  +     42 ms  [report ] 1st read of Amoxicillin stock = 5200
+  +     51 ms  [store  ] delivery of 2000 capsules booked in -> COMMIT
+  +     52 ms  [report ] 2nd read in the SAME transaction = 5200
+  +     52 ms  [check  ] same value both times - the transaction works on one snapshot
+
+========================================================================================
+D. WRITE SKEW - rule: at least one ICU doctor must stay on call
+========================================================================================
+Two on-call doctors each check the rule and then sign off. They update DIFFERENT rows,
+so row locks never conflict - only SERIALIZABLE (SSI) detects the dangerous pattern.
+
+Both transactions at REPEATABLE READ:
+  +     20 ms  [dr1    ] checks rule: 2 doctors on call -> OK for me to leave
+  +     21 ms  [dr2    ] checks rule: 2 doctors on call -> OK for me to leave
+  +     23 ms  [dr2    ] UPDATE own row: on_call = false
+  +     23 ms  [dr1    ] UPDATE own row: on_call = false
+  +     25 ms  [dr2    ] COMMIT
+  +     26 ms  [dr1    ] COMMIT
+  +     43 ms  [check  ] doctors still on call = 0 -> RULE VIOLATED (write skew)
+
+Both transactions at SERIALIZABLE:
+  +     19 ms  [dr2    ] checks rule: 2 doctors on call -> OK for me to leave
+  +     20 ms  [dr1    ] checks rule: 2 doctors on call -> OK for me to leave
+  +     22 ms  [dr1    ] UPDATE own row: on_call = false
+  +     23 ms  [dr2    ] UPDATE own row: on_call = false
+  +     25 ms  [dr2    ] ERROR 40001 could not serialize access due to read/write dependencies among transactions -> ROLLBACK
+  +     25 ms  [dr1    ] COMMIT
+  +     46 ms  [check  ] doctors still on call = 1 -> rule holds
+
+========================================================================================
+E. DOUBLE BOOKING - two receptionists book the same doctor at overlapping times
+========================================================================================
+  +     16 ms  [desk1  ] INSERT appointment 10:00-10:30 for doctor 6
+  +     30 ms  [desk1  ] insert accepted, holding transaction open (talking to patient) ...
+  +    116 ms  [desk2  ] INSERT appointment 10:15-10:45 for doctor 6
+  +    417 ms  [monitor] pg_stat_activity: desk2 is WAITING (Lock:transactionid), blocked by desk1
+  +    832 ms  [desk1  ] COMMIT
+  +    834 ms  [desk2  ] ERROR 23P01 conflicting key value violates exclusion constraint "appt_no_doctor_overlap" -> ROLLBACK
+  +    945 ms  [check  ] bookings stored for that doctor/time = 1. desk2 had to WAIT for desk1's transaction to finish before PostgreSQL could decide (no race window).
+
+========================================================================================
+F. DEADLOCK - two pharmacists each need Paracetamol AND Amoxicillin
+========================================================================================
+
+F1 opposite lock order (the bug): pharm1 locks Paracetamol then Amoxicillin, pharm2 the reverse
+  +     16 ms  [pharm2 ] locked drug 5
+  +     17 ms  [pharm1 ] locked drug 3
+  +     17 ms  [pharm1 ] now needs drug 5 ...
+  +     17 ms  [pharm2 ] now needs drug 3 ...
+  +   1026 ms  [pharm1 ] ERROR 40P01 deadlock detected -> PostgreSQL chose this transaction as the victim, ROLLBACK
+  +   1028 ms  [pharm2 ] locked drug 3
+  +   1030 ms  [pharm2 ] COMMIT
+  +   1030 ms  [check  ] outcome: {'pharm1': 'aborted', 'pharm2': 'committed'}
+
+F2 fix: both lock in ascending drug_id order (exactly what dispense_prescriptions() does)
+  +     24 ms  [pharm1 ] locked drug 3
+  +     24 ms  [pharm1 ] now needs drug 5 ...
+  +     26 ms  [pharm1 ] locked drug 5
+  +     28 ms  [pharm1 ] COMMIT
+  +     68 ms  [pharm2 ] locked drug 3
+  +     68 ms  [pharm2 ] now needs drug 5 ...
+  +     69 ms  [pharm2 ] locked drug 5
+  +     71 ms  [pharm2 ] COMMIT
+  +     71 ms  [check  ] outcome: {'pharm1': 'committed', 'pharm2': 'committed'} - pharm2 waited briefly, nobody was aborted
+
+========================================================================================
+G. BED QUEUE - 8 simultaneous ICU admissions, 5 free beds, FOR UPDATE SKIP LOCKED
+========================================================================================
+  +     66 ms  [clerk2 ] ward full -> no bed (answered in 17 ms, did not wait)
+  +     67 ms  [clerk7 ] ward full -> no bed (answered in 18 ms, did not wait)
+  +     68 ms  [clerk5 ] ward full -> no bed (answered in 19 ms, did not wait)
+  +    138 ms  [clerk4 ] got bed DEMO-4 in 16 ms; filling in admission form ...
+  +    142 ms  [clerk8 ] got bed DEMO-2 in 21 ms; filling in admission form ...
+  +    159 ms  [clerk6 ] got bed DEMO-1 in 19 ms; filling in admission form ...
+  +    163 ms  [clerk1 ] got bed DEMO-3 in 19 ms; filling in admission form ...
+  +    172 ms  [clerk3 ] got bed DEMO-5 in 20 ms; filling in admission form ...
+  +    676 ms  [check  ] 5 admissions, beds ['DEMO-1', 'DEMO-2', 'DEMO-3', 'DEMO-4', 'DEMO-5'], all different = True; 3 clerks told 'ward full' immediately
+
+Demo data removed; drug stock restored to its original values.
