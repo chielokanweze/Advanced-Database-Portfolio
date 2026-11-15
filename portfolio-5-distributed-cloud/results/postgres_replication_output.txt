@@ -1,0 +1,102 @@
+
+========================================================================================
+C. POSTGRESQL STREAMING REPLICATION - primary (15432) -> hot standby replica (15433)
+========================================================================================
+
+========================================================================================
+C1  Replication status
+========================================================================================
+     application_name | client_addr |   state   | sync_state | replay_gap 
+    ------------------+-------------+-----------+------------+------------
+     replica1         | 172.19.0.7  | streaming | async      | 0 bytes
+    (1 row)
+     replica_in_recovery | patients_on_replica 
+    ---------------------+---------------------
+     t                   |               60000
+    (1 row)
+
+========================================================================================
+C2  Replication delay of a single write (asynchronous, same host)
+========================================================================================
+10 single-row writes: visible on the replica after median 291 ms (max 430 ms) - includes the docker exec round trip used to poll
+
+========================================================================================
+C3  Write burst - how far does the replica fall behind?
+========================================================================================
+300,000-row insert committed on the primary in 1.3 s; WAL not yet replayed at commit: 0 bytes; replica caught up 0.70 s later
+
+========================================================================================
+C4  The replica is read-only
+========================================================================================
+    ERROR:  cannot execute INSERT in a read-only transaction
+
+========================================================================================
+C5  Stale read (eventual consistency) - replica deliberately applies WAL 3 s late
+========================================================================================
+primary: row inserted and committed
+replica, immediately: rows with note 'stale-read test' = 0   <- stale
+replica, after 3.1 s: rows = 1   <- consistent again
+Lesson: a clinician who saves a prescription and is then routed to a lagging replica may not see it.
+GraceCare therefore sends read-your-own-writes traffic (clinical screens) to the primary and only
+reports/dashboards to replicas.
+
+========================================================================================
+C6  Synchronous vs asynchronous commit - latency cost of zero data loss
+========================================================================================
+     application_name | sync_state 
+    ------------------+------------
+     replica1         | sync
+    (1 row)
+200 single-row autocommit INSERTs: asynchronous 1.45 ms/commit, synchronous 7.60 ms/commit (5.2x)
+With synchronous commit the primary only reports success after the standby has the WAL on disk:
+RPO = 0 (no committed transaction can be lost in a failover), paid for with extra latency.
+
+========================================================================================
+C7  Synchronous standby is DOWN - availability vs consistency
+========================================================================================
+docker stop gc-pg-replica
+an INSERT was started on the primary; 6 s later it has still not returned. pg_stat_activity:
+     wait_event_type | wait_event | waiting_for |                     query                     
+    -----------------+------------+-------------+-----------------------------------------------
+     IPC             | SyncRep    | 00:00:06    | INSERT INTO gc.repl_probe (note) VALUES ('dur
+    (1 row)
+(statement_timeout does not end this wait - in a test run a 4 s statement_timeout still hung for
+ 2 minutes: the commit is already written locally, so the server waits for the standby to confirm)
+after pg_cancel_backend() the client receives:
+    INSERT 0 1
+    WARNING:  canceling wait for synchronous replication due to user request
+    DETAIL:  The transaction has already committed locally, but might not have been replicated to the standby.
+     rows_marked_during_outage 
+    ---------------------------
+                             1
+    (1 row)
+The row IS committed locally but was never confirmed by a standby. With strict synchronous
+replication the hospital has to choose: keep waiting (consistent, not available) or drop to
+asynchronous (available, small risk of losing recent commits). Here we choose availability:
+synchronous_standby_names reset -> next INSERT committed in 263 ms
+replica restarted and streaming again (it caught up from the WAL kept by replication slot replica1_slot)
+
+========================================================================================
+C8  Failover - the primary fails, the replica is promoted
+========================================================================================
+docker stop -t 0 gc-pg-primary   (crash, t = 0)
+replica still serves reads: appointments = 123369; writes are rejected until promotion
+    pg_promote() -> t
+     in_recovery |     current_wal_file     
+    -------------+--------------------------
+     f           | 000000020000000000000021
+    (1 row)
+the first 8 hex digits of the WAL file name are the timeline: promotion started timeline 2,
+so WAL written by the new primary can never be confused with WAL from the old one
+write accepted on the promoted node at t = 2.2 s (manual promotion; Patroni would do this automatically in ~10-30 s)
+Split-brain risk: if the old primary came back as a writer, two nodes would accept different writes.
+Production setups fence it (Patroni + a DCS such as etcd) and re-join it as a replica with pg_rewind.
+
+========================================================================================
+C9  Lab reset - rebuild the original topology
+========================================================================================
+old primary restarted as primary, promoted replica discarded, fresh replica cloned with pg_basebackup:
+     application_name |   state   | sync_state 
+    ------------------+-----------+------------
+     replica1         | streaming | async
+    (1 row)

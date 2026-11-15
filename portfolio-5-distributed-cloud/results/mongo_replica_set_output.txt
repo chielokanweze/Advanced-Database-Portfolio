@@ -1,0 +1,44 @@
+
+========================================================================================
+B. MONGODB REPLICA SET rs0 - 3 members (1 primary, 2 secondaries)
+========================================================================================
+current primary: gc-mongo1
+    mongo1:27017 PRIMARY
+    mongo2:27017 SECONDARY
+    mongo3:27017 SECONDARY
+
+========================================================================================
+B1  Majority write, then read from a secondary
+========================================================================================
+    insert acknowledged by a majority of members: true
+    read on secondary gc-mongo2, ops_probe documents: 1
+    patients on this secondary: 10000
+
+========================================================================================
+B2  Automatic failover: the primary container is stopped
+========================================================================================
+docker stop gc-mongo1  (simulated crash)
+new primary elected: gc-mongo2 after 2.9 s (no human action)
+    mongo1:27017 (not reachable/healthy) (down)
+    mongo2:27017 PRIMARY
+    mongo3:27017 SECONDARY
+    majority write accepted by the new primary: true
+docker start gc-mongo1 - it rejoins, catches up from the oplog, and (priority 2) takes over again:
+    mongo1:27017 PRIMARY
+    mongo2:27017 SECONDARY
+    mongo3:27017 SECONDARY
+
+========================================================================================
+B3  Losing the majority: 2 of 3 members down (network partition / outage)
+========================================================================================
+docker stop gc-mongo2 gc-mongo3
+after 9.4 s gc-mongo1 can no longer see a majority and STEPS DOWN to secondary:
+    SECONDARY (read-only)
+    write rejected: NotWritablePrimary - not primary
+    reads still work (possibly stale): patients = 10000
+CAP: during the partition MongoDB keeps CONSISTENCY - the minority side refuses writes so two sides
+can never accept conflicting changes - and gives up write AVAILABILITY until a majority returns.
+members restarted; replica set healthy again:
+    mongo1:27017 SECONDARY
+    mongo2:27017 SECONDARY
+    mongo3:27017 PRIMARY

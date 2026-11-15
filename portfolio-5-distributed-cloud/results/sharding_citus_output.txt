@@ -1,0 +1,127 @@
+
+========================================================================================
+A. SHARDING WITH CITUS - coordinator + 2 workers, distribution key patient_id
+========================================================================================
+cluster nodes:
+     nodeid |  nodename   | nodeport | noderole 
+    --------+-------------+----------+----------
+          1 | citus-coord |     5432 | primary
+          2 | citus-w1    |     5432 | primary
+          3 | citus-w2    |     5432 | primary
+    (3 rows)
+schema created: departments, doctors = REFERENCE tables; patients, appointments = DISTRIBUTED by patient_id (8 shards, co-located)
+loaded data from gc-pg-primary in 9.7 s
+
+========================================================================================
+A1  Where did the data go? (shard placement)
+========================================================================================
+       worker    |  table_name  | shards |  size   
+    -------------+--------------+--------+---------
+     citus-coord | departments  |      1 | 40 kB
+     citus-w1    | departments  |      1 | 40 kB
+     citus-w2    | departments  |      1 | 40 kB
+     citus-w1    | patients     |      4 | 2624 kB
+     citus-w2    | patients     |      4 | 2624 kB
+     citus-w1    | appointments |      4 | 9544 kB
+     citus-w2    | appointments |      4 | 9472 kB
+     citus-coord | doctors      |      1 | 24 kB
+     citus-w1    | doctors      |      1 | 24 kB
+     citus-w2    | doctors      |      1 | 24 kB
+    (10 rows)
+      table_name  | count  
+    --------------+--------
+     patients     |  60000
+     appointments | 123369
+    (2 rows)
+     shard_of_patient_12345 | stored_on 
+    ------------------------+-----------
+                     102013 | citus-w2
+    (1 row)
+
+========================================================================================
+A2  Router query: filter on the distribution key -> exactly ONE shard on ONE worker
+========================================================================================
+SELECT a.start_at, a.status FROM appointments a WHERE a.patient_id = 12345
+                               QUERY PLAN                            
+    -----------------------------------------------------------------
+     Custom Scan (Citus Adaptive)
+       Task Count: 1
+       Tasks Shown: All
+       ->  Task
+             Node: host=citus-w2 port=5432 dbname=gracecare
+             ->  Bitmap Heap Scan on appointments_102021 a
+                   Recheck Cond: (patient_id = 12345)
+                   ->  Bitmap Index Scan on appointments_pkey_102021
+                         Index Cond: (patient_id = 12345)
+    (9 rows)
+
+========================================================================================
+A3  Multi-shard query: no distribution key -> fan out to ALL shards, merge on coordinator
+========================================================================================
+SELECT count(*) FROM appointments WHERE doctor_id = 12 AND start_at >= '2026-11-01'
+                                                                 QUERY PLAN                                                              
+    -------------------------------------------------------------------------------------------------------------------------------------
+     Aggregate
+       ->  Custom Scan (Citus Adaptive)
+             Task Count: 8
+             Tasks Shown: One of 8
+             ->  Task
+                   Node: host=citus-w1 port=5432 dbname=gracecare
+                   ->  Aggregate
+                         ->  Bitmap Heap Scan on appointments_102018 appointments
+                               Recheck Cond: ((doctor_id = 12) AND (start_at >= '2026-11-01 00:00:00+01'::timestamp with time zone))
+                               ->  Bitmap Index Scan on appointments_doctor_id_start_at_idx_102018
+                                     Index Cond: ((doctor_id = 12) AND (start_at >= '2026-11-01 00:00:00+01'::timestamp with time zone))
+    (11 rows)
+
+========================================================================================
+A4  Co-located join + reference-table join: pushed down to the workers, no data shuffle
+========================================================================================
+SELECT dep.name, count(*) FROM patients p JOIN appointments a ON a.patient_id = p.patient_id JOIN doctors d ON d.doctor_id = a.doctor_id JOIN departments dep ON dep.dept_id = d.dept_id WHERE p.sex = 'F' AND a.status = 'COMPLETED' GROUP BY dep.name ORDER BY 2 DESC
+               name           | count 
+    --------------------------+-------
+     Obstetrics & Gynaecology | 13970
+     Surgery                  |  7277
+     Cardiology               |  7226
+     General Outpatient       |  7216
+     Paediatrics              |  7189
+     Internal Medicine        |  7151
+     Accident & Emergency     |  7126
+    (7 rows)
+                                               QUERY PLAN                                           
+    ------------------------------------------------------------------------------------------------
+     Sort
+       Sort Key: (COALESCE((pg_catalog.sum(remote_scan.count))::bigint, '0'::bigint)) DESC
+       ->  HashAggregate
+             Group Key: remote_scan.name
+             ->  Custom Scan (Citus Adaptive)
+                   Task Count: 8
+                   Tasks Shown: One of 8
+                   ->  Task
+                         Node: host=citus-w1 port=5432 dbname=gracecare
+                         ->  HashAggregate
+                               Group Key: dep.name
+                               ->  Hash Join
+    ...
+
+========================================================================================
+A5  Constraint rule in a sharded table
+========================================================================================
+Try: ALTER TABLE patients ADD UNIQUE (hospital_no)   -- hospital_no is not the distribution key
+    ERROR:  cannot create constraint on "patients"
+    DETAIL:  Distributed relations cannot have UNIQUE, EXCLUDE, or PRIMARY KEY constraints that do not include the partition column (with an equality operator if EXCLUDE).
+Each worker can only check uniqueness inside its own shards, so global uniqueness of a non-key column
+is not enforced. Options: make hospital_no derive from patient_id, check it in a lookup table, or
+keep patient registration on a single (non-distributed) table.
+
+========================================================================================
+A6  Cross-shard transaction (two-phase commit across workers)
+========================================================================================
+patient 1 lives on citus-w1, patient 3 on citus-w2. One transaction updates both:
+    BEGIN
+    UPDATE 7
+    UPDATE 3
+    COMMIT
+Because the transaction wrote to two workers, Citus committed it with two-phase commit
+(PREPARE TRANSACTION on each worker, then COMMIT PREPARED), so the change is atomic across
+machines; pg_dist_transaction records it so an interrupted commit can be recovered.
