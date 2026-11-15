@@ -1,0 +1,44 @@
+Redis 7.4.1 at redis://redis:6379/0
+
+========================================================================================
+R1  Cache-aside for the patient banner (TTL 300 s)
+========================================================================================
+200 patients, first lookup  (MISS -> PostgreSQL + SET): median 1.551 ms
+200 patients, second lookup (HIT  -> Redis GET)       : median 0.195 ms  (8.0x faster)
+example key patient:GC00001000:banner: TTL remaining 300 s, value {"hospital_no": "GC00001000", "name": "Babatunde Adeyemi", "sex": "M", "age": 94, "genotype": "AA", "blood_group": "O+", "last_visit": "2026-06-25 09:00:00+01:00", "visits": 2, "conditions": ["I50.9"]}
+Redis memory used: 1.15M (maxmemory 128 MB, policy allkeys-lru evicts the least recently used keys when full)
+
+========================================================================================
+R2  Invalidation on write - the cache must never show stale clinical data
+========================================================================================
+genotype changed in PostgreSQL (was AA).
+read without invalidation -> HIT, genotype AA  <- STALE for up to 300 s
+after DEL patient:GC00001000:banner -> MISS, genotype AS  <- correct
+(test change reverted)
+
+========================================================================================
+R3  A&E triage queue - sorted set, most urgent first, then first come first served
+========================================================================================
+  arrival 1: GC00000311 category 4 (sprained ankle)
+  arrival 2: GC00000312 category 2 (chest pain)
+  arrival 3: GC00000313 category 3 (high fever, child)
+  arrival 4: GC00000314 category 1 (road traffic accident, unconscious)
+  arrival 5: GC00000315 category 4 (cut finger)
+  arrival 6: GC00000316 category 2 (snake bite)
+queue length (ZCARD) = 6
+doctor calls next patient (ZPOPMIN) six times:
+  -> GC00000314 category 1 (road traffic accident, unconscious)
+  -> GC00000312 category 2 (chest pain)
+  -> GC00000316 category 2 (snake bite)
+  -> GC00000313 category 3 (high fever, child)
+  -> GC00000311 category 4 (sprained ankle)
+  -> GC00000315 category 4 (cut finger)
+ZADD and ZPOPMIN are O(log n) and atomic, so several triage nurses and doctors can share the queue.
+
+========================================================================================
+R4  Live ward occupancy counters (atomic HINCRBY)
+========================================================================================
+loaded from PostgreSQL: {'Paediatric Ward': '17', 'Intensive Care Unit': '8', 'Maternity Ward': '13', 'Surgical Ward': '15', 'Cardiac Care Unit': '7', 'Medical Ward': '23'}
+after one admission (Medical) and one discharge (Maternity): {'Paediatric Ward': '17', 'Intensive Care Unit': '8', 'Maternity Ward': '12', 'Surgical Ward': '15', 'Cardiac Care Unit': '7', 'Medical Ward': '24'}
+The dashboard reads one hash instead of running an aggregate over admissions every few seconds.
+PostgreSQL stays the system of record; the counters are rebuilt from it after a Redis restart.

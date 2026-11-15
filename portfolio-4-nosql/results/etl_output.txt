@@ -1,0 +1,7 @@
+read from PostgreSQL: 10000 patients, 20485 visits, 17696 diagnoses, 17125 prescriptions, 12050 lab results, 633 admissions
+inserted 10000 documents into gracecare.patients (validator on, write concern w=majority)
+inserted 23 documents into gracecare.drug_stock
+collection size: 10000 documents, data 13.0 MB, average document 1.3 KB
+largest document: GC00008465 with 12 visits = 7.2 KB (0.044% of MongoDB's 16 MB document limit)
+sample document written to sample_patient_document.json
+ETL finished in 5.0 s

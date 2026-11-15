@@ -1,0 +1,101 @@
+MongoDB 7.0.14, replica set rs0, primary mongo1:27017, members ['mongo1:27017', 'mongo2:27017', 'mongo3:27017']
+collection gracecare.patients: 10000 documents
+
+========================================================================================
+M1  Open one patient's complete record
+========================================================================================
+MongoDB: db.patients.findOne({_id: 'GC00000007'}) -> 1 document, 3 embedded visits, 2 lab results, client round trip 20.2 ms
+summary sub-document: {'visit_count': 3, 'last_visit': datetime.datetime(2026, 8, 31, 14, 30), 'conditions': ['B50.9', 'B54', 'M54.5', 'S52.5']}
+PostgreSQL: the same record is 12 rows spread over 4 tables (+ 5 lookup tables) and needs a 6-table join (Portfolio 2, Q1).
+
+========================================================================================
+M2  Index design - critical lab results not yet reviewed
+========================================================================================
+query: db.patients.find({"visits.labs": {"$elemMatch": {"flag": "CRITICAL", "status": "RESULTED"}}})
+before (no secondary index):
+{
+  "plan stages": "COLLSCAN",
+  "documents examined": 10000,
+  "index keys examined": 0,
+  "documents returned": 1,
+  "time ms": 284
+}
+after createIndex({'visits.labs.flag': 1, 'visits.labs.status': 1})  (a multikey index):
+{
+  "plan stages": "FETCH <- IXSCAN",
+  "documents examined": 1,
+  "index keys examined": 1,
+  "documents returned": 1,
+  "time ms": 10
+}
+documents examined: 10000 -> 1
+patients with an unreviewed critical result: ['GC00009852']
+indexes now on the collection: _id_, idx_lab_flag_status, idx_name, idx_visit_date
+
+========================================================================================
+M3  Aggregation pipeline - top 3 primary diagnoses per department, Jul-Sep 2026
+========================================================================================
+pipeline stages: $unwind -> $match -> $unwind -> $match -> $group -> $sort -> $group -> $project -> $sort
+  Accident & Emergency       Fracture of lower end of radius (115); Concussion (113); Plasmodium falciparum malaria, unspecified (108)
+  Cardiology                 Essential (primary) hypertension (207); Heart failure, unspecified (107); Angina pectoris, unspecified (103)
+  General Outpatient         Unspecified malaria (122); Acute upper respiratory infection, unspecified (102); Plasmodium falciparum malaria, unspecified (91)
+  Internal Medicine          Type 2 diabetes mellitus without complications (157); Essential (primary) hypertension (118); Chronic kidney disease, unspecified (104)
+  Obstetrics & Gynaecology   Supervision of normal pregnancy, unspecified (286); Dysmenorrhoea, unspecified (112); Acute vaginitis (110)
+  Paediatrics                Plasmodium falciparum malaria, unspecified (135); Infectious gastroenteritis and colitis, unspecified (82); Acute upper respiratory infection, unspecified (76)
+  Surgery                    Calculus of gallbladder without cholecystitis (122); Acute appendicitis, other and unspecified (120); Follow-up examination after treatment (115)
+
+========================================================================================
+M4  Aggregation pipeline - malaria cases per month (B50.9 + B54)
+========================================================================================
+  2025-11  cases   54  of which children   20  ##########
+  2025-12  cases  160  of which children   48  ################################
+  2026-01  cases  158  of which children   52  ###############################
+  2026-02  cases  135  of which children   50  ###########################
+  2026-03  cases  162  of which children   60  ################################
+  2026-04  cases  153  of which children   53  ##############################
+  2026-05  cases  172  of which children   57  ##################################
+  2026-06  cases  128  of which children   42  #########################
+  2026-07  cases  189  of which children   65  #####################################
+  2026-08  cases  140  of which children   42  ############################
+  2026-09  cases  177  of which children   54  ###################################
+  2026-10  cases  171  of which children   53  ##################################
+  2026-11  cases   61  of which children   17  ############
+
+========================================================================================
+M5  Flexible schema - polymorphic lab results
+========================================================================================
+Only positive malaria films have a 'species' field; other results do not. No schema change needed.
+  test CREAT  species field present = False results 2438
+  test HB     species field present = False results 2408
+  test HBA1C  species field present = False results 659
+  test K      species field present = False results 2454
+  test MPD    species field present = False results 135
+  test MPD    species field present = True  results 1416
+  test RBG    species field present = False results 830
+  test TROP   species field present = False results 992
+  test WBC    species field present = False results 718
+example element: {"test": "MPD", "name": "Malaria parasite density", "value": 164310.39, "unit": "parasites/uL", "flag": "HIGH", "status": "REVIEWED", "resulted_at": "2026-02-17 15:04:50.263000", "reviewed_at": "2026-02-18 03:35:25.797000", "species": "P. falciparum"}
+
+========================================================================================
+M6  Atomic single-document update - book a new visit
+========================================================================================
+update_one($push visit, $inc summary.visit_count): matched=1 modified=1
+visit_count 3 -> 4. Both changes are in ONE document, so MongoDB applies them atomically without a transaction.
+(demo visit removed again)
+
+========================================================================================
+M7  Schema validation - the database rejects malformed documents
+========================================================================================
+  PASS - rejected (sex 'X' and date_of_birth as a string): code 121 Document failed validation; failing properties: ['sex', 'date_of_birth']
+  PASS - rejected (visit without a doctor): code 121 Document failed validation; failing properties: ['visits']
+
+========================================================================================
+M8  Multi-document ACID transaction - pharmacy dispenses an open prescription
+========================================================================================
+Two documents in two collections must change together: drug_stock (minus quantity) and the
+prescription status inside the patient document. This needs a replica set and a transaction.
+open prescription: patient GC00001291, Aspirin 75mg x30
+  stock too low   : start stock   29 -> ABORTED (insufficient stock: have 29, need 30); stock after = 29; prescription still open = True
+  stock sufficient: start stock  130 -> COMMITTED; stock after = 100; prescription still open = False
+In the aborted run both writes had already been made inside the transaction; abortTransaction
+undid both. In the committed run both became visible together (all-or-nothing across documents).
