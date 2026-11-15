@@ -1,0 +1,52 @@
+{
+  "$jsonSchema": {
+    "bsonType": "object",
+    "title": "GraceCare patient record (one document per patient)",
+    "required": ["_id", "name", "sex", "date_of_birth", "registered_at", "visits", "summary"],
+    "properties": {
+      "_id":           { "bsonType": "string", "pattern": "^GC[0-9]{8}$", "description": "hospital number" },
+      "name": {
+        "bsonType": "object",
+        "required": ["first", "last"],
+        "properties": { "first": { "bsonType": "string" }, "last": { "bsonType": "string" } }
+      },
+      "sex":           { "enum": ["M", "F"] },
+      "date_of_birth": { "bsonType": "date" },
+      "phone":         { "bsonType": ["string", "null"], "pattern": "^\\+234[789][01][0-9]{8}$" },
+      "blood_group":   { "enum": ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", null] },
+      "genotype":      { "enum": ["AA", "AS", "AC", "SS", "SC", null] },
+      "registered_at": { "bsonType": "date" },
+      "visits": {
+        "bsonType": "array",
+        "items": {
+          "bsonType": "object",
+          "required": ["appointment_id", "start_at", "status", "department", "doctor"],
+          "properties": {
+            "appointment_id": { "bsonType": ["long", "int"] },
+            "start_at":       { "bsonType": "date" },
+            "status":         { "enum": ["BOOKED", "CHECKED_IN", "COMPLETED", "CANCELLED", "NO_SHOW"] },
+            "department":     { "bsonType": "string" },
+            "doctor": {
+              "bsonType": "object",
+              "required": ["doctor_id", "name"],
+              "properties": { "doctor_id": { "bsonType": "int" }, "name": { "bsonType": "string" } }
+            },
+            "diagnoses":     { "bsonType": "array" },
+            "prescriptions": { "bsonType": "array" },
+            "labs":          { "bsonType": "array" }
+          }
+        }
+      },
+      "admissions": { "bsonType": "array" },
+      "summary": {
+        "bsonType": "object",
+        "required": ["visit_count"],
+        "properties": {
+          "visit_count": { "bsonType": "int", "minimum": 0 },
+          "last_visit":  { "bsonType": ["date", "null"] },
+          "conditions":  { "bsonType": "array", "items": { "bsonType": "string" } }
+        }
+      }
+    }
+  }
+}
