@@ -1,0 +1,142 @@
+erDiagram
+    DEPARTMENTS ||--o{ DOCTORS : employs
+    DEPARTMENTS ||--o{ WARDS : runs
+    WARDS ||--|{ BEDS : contains
+    PATIENTS ||--o{ APPOINTMENTS : books
+    DOCTORS ||--o{ APPOINTMENTS : "holds clinic for"
+    APPOINTMENTS ||--o{ DIAGNOSES : records
+    ICD10_CODES ||--o{ DIAGNOSES : classifies
+    APPOINTMENTS ||--o{ PRESCRIPTIONS : produces
+    DRUGS ||--o{ PRESCRIPTIONS : "is prescribed in"
+    APPOINTMENTS ||--o{ LAB_ORDERS : requests
+    LAB_TESTS ||--o{ LAB_ORDERS : "is ordered as"
+    DOCTORS |o--o{ LAB_ORDERS : reviews
+    PATIENTS ||--o{ ADMISSIONS : "is admitted in"
+    BEDS ||--o{ ADMISSIONS : "is occupied by"
+    DOCTORS ||--o{ ADMISSIONS : admits
+
+    DEPARTMENTS {
+        smallint dept_id PK
+        varchar name UK
+        varchar dept_type "EMERGENCY | OUTPATIENT | INPATIENT | THEATRE"
+    }
+    DOCTORS {
+        int doctor_id PK
+        varchar staff_no UK
+        varchar first_name
+        varchar last_name
+        char sex
+        varchar specialty
+        smallint dept_id FK
+        varchar mdcn_licence_no UK
+        varchar email UK
+        boolean is_active
+    }
+    PATIENTS {
+        int patient_id PK
+        char hospital_no UK "GC + 8 digits"
+        varchar first_name
+        varchar last_name
+        char sex
+        date date_of_birth "not in the future (trigger)"
+        varchar phone "+234 mobile"
+        varchar blood_group
+        varchar genotype "AA AS AC SS SC"
+        timestamptz registered_at
+    }
+    ICD10_CODES {
+        varchar code PK
+        varchar description
+        varchar chapter
+        char sex_restriction "NULL = both"
+    }
+    APPOINTMENTS {
+        bigint appointment_id PK
+        int patient_id FK
+        int doctor_id FK
+        timestamptz start_at "no overlap per doctor / patient"
+        timestamptz end_at
+        varchar status
+        varchar reason
+        timestamptz booked_at
+    }
+    DIAGNOSES {
+        bigint diagnosis_id PK
+        bigint appointment_id FK "UK with icd10_code"
+        varchar icd10_code FK
+        boolean is_primary "one per visit"
+        text notes
+        timestamptz recorded_at
+    }
+    DRUGS {
+        int drug_id PK
+        varchar name UK
+        varchar form
+        numeric unit_price
+        int stock_qty ">= 0"
+        int reorder_level
+    }
+    PRESCRIPTIONS {
+        bigint prescription_id PK
+        bigint appointment_id FK "UK with drug_id"
+        int drug_id FK
+        varchar dosage
+        int quantity "1-500"
+        varchar status
+        timestamptz prescribed_at
+        timestamptz dispensed_at "required when DISPENSED"
+    }
+    LAB_TESTS {
+        smallint test_id PK
+        varchar code UK
+        varchar name UK
+        varchar unit
+        numeric ref_low
+        numeric ref_high
+        numeric critical_low
+        numeric critical_high
+        numeric price
+    }
+    LAB_ORDERS {
+        bigint order_id PK
+        bigint appointment_id FK
+        smallint test_id FK
+        timestamptz ordered_at
+        varchar status "ORDERED RESULTED REVIEWED"
+        numeric result_value
+        varchar result_flag "derived by trigger"
+        timestamptz resulted_at
+        timestamptz reviewed_at
+        int reviewed_by FK
+    }
+    WARDS {
+        smallint ward_id PK
+        smallint dept_id FK
+        varchar name UK
+    }
+    BEDS {
+        int bed_id PK
+        smallint ward_id FK
+        varchar bed_label "UK within ward"
+        boolean is_active
+    }
+    ADMISSIONS {
+        bigint admission_id PK
+        int patient_id FK
+        int bed_id FK "no overlapping stays"
+        int admitting_doctor_id FK
+        timestamptz admitted_at
+        timestamptz discharged_at "NULL = still admitted"
+        varchar admission_reason
+    }
+    AUDIT_LOG {
+        bigint audit_id PK
+        text table_name
+        bigint row_pk
+        char action "U or D"
+        jsonb old_values
+        jsonb new_values
+        text app_user
+        text db_user
+        timestamptz changed_at
+    }
